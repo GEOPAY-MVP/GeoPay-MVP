@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: GeoPay API
-  description: RESTful API contract for the GeoPay MVP backend.
+  description: RESTful API contract for the GeoPay MVP backend (corrected from review).
   version: 1.0.0
   contact:
     name: GeoPay Private Limited
@@ -20,12 +20,9 @@ security:
   - bearerAuth: []
 
 paths:
-  # ========================
-  # User Authentication
-  # ========================
   /users/register:
     post:
-      summary: Register user (Step 1: email + password)
+      summary: Register user (Step 1 - email + password)
       requestBody:
         required: true
         content:
@@ -88,7 +85,9 @@ paths:
                     format: date
                   kyc_status:
                     type: string
-                    enum: [pending, verified]
+                    enum:
+                      - pending
+                      - verified
                   message:
                     type: string
         '400':
@@ -172,7 +171,9 @@ paths:
                   format: uuid
                 channel:
                   type: string
-                  enum: [email, phone]
+                  enum:
+                    - email
+                    - phone
               required:
                 - user_id
                 - channel
@@ -243,9 +244,6 @@ paths:
                 last_login_at: "timestamp"
                 status: "string"
 
-  # ========================
-  # Wallet Management
-  # ========================
   /wallets:
     get:
       summary: Get wallet details
@@ -315,9 +313,6 @@ paths:
                 total: 1
                 page: 1
 
-  # ========================
-  # Payment & Transfers
-  # ========================
   /transactions/p2p:
     post:
       summary: Initiate P2P transfer
@@ -352,3 +347,307 @@ paths:
           description: Insufficient balance
         '404':
           description: Receiver not found
+
+  /transactions/qr:
+    post:
+      summary: QR code payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                qr_data:
+                  type: string
+                amount:
+                  type: number
+              required:
+                - qr_data
+                - amount
+      responses:
+        '201':
+          description: QR payment successful
+          content:
+            application/json:
+              example:
+                transaction_id: "uuid"
+                status: "completed"
+                receipt: {}
+
+  /transactions/bill:
+    post:
+      summary: Bill payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provider_id:
+                  type: string
+                  format: uuid
+                reference_number:
+                  type: string
+                amount:
+                  type: number
+              required:
+                - provider_id
+                - reference_number
+                - amount
+      responses:
+        '201':
+          description: Bill payment successful
+          content:
+            application/json:
+              example:
+                transaction_id: "uuid"
+                status: "completed"
+
+  /providers:
+    get:
+      summary: Get supported providers
+      responses:
+        '200':
+          description: List of providers
+          content:
+            application/json:
+              example:
+                providers:
+                  - provider_id: "uuid"
+                    name: "KElectric"
+                    type: "utility"
+
+  /transactions/raast:
+    post:
+      summary: Raast transfer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                receiver_iban:
+                  type: string
+                amount:
+                  type: number
+              required:
+                - receiver_iban
+                - amount
+      responses:
+        '201':
+          description: Raast transfer successful
+          content:
+            application/json:
+              example:
+                transaction_id: "uuid"
+                status: "completed"
+
+  /transactions/link:
+    post:
+      summary: Generate payment link
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                mode:
+                  type: string
+                  enum:
+                    - p2p
+                    - raast
+                description:
+                  type: string
+              required:
+                - amount
+                - mode
+      responses:
+        '201':
+          description: Link generated
+          content:
+            application/json:
+              example:
+                link: "https://geopay.link/pay/abc123"
+
+  /cards/issue:
+    post:
+      summary: Issue virtual card
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                wallet_id:
+                  type: string
+                  format: uuid
+                card_type:
+                  type: string
+                  enum:
+                    - VISA
+                    - MasterCard
+                    - PayPak
+              required:
+                - wallet_id
+                - card_type
+      responses:
+        '201':
+          description: Card issued
+          content:
+            application/json:
+              example:
+                card_id: "uuid"
+                card_number: "string"
+                expiry_date: "string"
+                cvv: "string"
+                is_active: true
+                card_type: "VISA"
+        '403':
+          description: KYC not verified
+
+  /cards/{card_id}/freeze:
+    patch:
+      summary: Freeze/unfreeze card
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: card_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                freeze:
+                  type: boolean
+              required:
+                - freeze
+      responses:
+        '200':
+          description: Freeze status updated
+          content:
+            application/json:
+              example:
+                card_id: "uuid"
+                is_active: false
+
+  /cards/limits:
+    get:
+      summary: Get card limits
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Card limits
+          content:
+            application/json:
+              example:
+                card_id: "uuid"
+                daily_limit: 10000
+                transaction_limit: 5000
+
+  /cards:
+    get:
+      summary: Get all user cards
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of cards
+          content:
+            application/json:
+              example:
+                cards:
+                  - card_id: "uuid"
+                    card_number: "****1234"
+                    expiry_date: "12/25"
+                    is_active: true
+                    status: "active"
+                    updated_at: "timestamp"
+
+  /notifications:
+    get:
+      summary: Get notifications
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notifications list
+          content:
+            application/json:
+              example:
+                notifications:
+                  - notification_id: "uuid"
+                    title: "Payment received"
+                    message: "You received 500 PKR"
+                    type: "transaction"
+                    created_at: "timestamp"
+                total: 1
+
+  /users/2fa/setup:
+    post:
+      summary: Enable/disable 2FA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                enable:
+                  type: boolean
+              required:
+                - user_id
+                - enable
+      responses:
+        '200':
+          description: 2FA status updated
+          content:
+            application/json:
+              example:
+                message: "2FA enabled successfully."
+
+  /security/logs:
+    get:
+      summary: Retrieve user security logs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Security logs
+          content:
+            application/json:
+              example:
+                logs:
+                  - log_id: "uuid"
+                    action: "login"
+                    timestamp: "timestamp"
+                    device: "Android"
