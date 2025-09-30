@@ -1,0 +1,559 @@
+openapi: 3.0.3
+info:
+  title: GeoPay API
+  description: RESTful API contract for the GeoPay MVP backend (corrected from review).
+  version: 1.0.0
+  contact:
+    name: GeoPay Private Limited
+
+servers:
+  - url: /api/v1
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
+
+paths:
+
+  ########################
+  # User Authentication
+  ########################
+
+  /users/register:
+    post:
+      summary: Register user (Step 1: email + password)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                password: { type: string }
+              required: [email, password]
+      responses:
+        '201':
+          description: Registration started
+          content:
+            application/json:
+              example: { "message": "Registration started. Please upload CNIC." }
+        '400': { description: Invalid email/password format }
+        '409': { description: Email already registered }
+
+  /users/register-cnic:
+    post:
+      summary: Upload CNIC (Step 2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                cnic_image: { type: string, format: byte }
+              required: [email, cnic_image]
+      responses:
+        '201':
+          description: CNIC captured
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string, format: uuid }
+                  full_name: { type: string }
+                  date_of_birth: { type: string, format: date }
+                  kyc_status: { type: string, enum: [pending, verified] }
+                  message: { type: string }
+        '400': { description: Invalid CNIC image }
+        '409': { description: CNIC already registered }
+
+  /users/verify-biometric:
+    post:
+      summary: Simulate biometric verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id: { type: string, format: uuid }
+                biometric_token: { type: string }
+              required: [user_id, biometric_token]
+      responses:
+        '200':
+          description: Biometric verified
+          content:
+            application/json:
+              example:
+                user_id: "uuid"
+                kyc_status: "verified"
+                message: "Biometric verified successfully."
+        '400': { description: Invalid biometric token }
+        '401': { description: Unauthorized session }
+
+  /users/login:
+    post:
+      summary: Login with email/phone + password/PIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email_or_phone: { type: string }
+                password_or_pin: { type: string }
+              required: [email_or_phone, password_or_pin]
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              example:
+                user_id: "uuid"
+                token: "jwt"
+                last_login_at: "timestamp"
+        '401': { description: Invalid credentials }
+
+  /users/send-otp:
+    post:
+      summary: Send OTP for login or device verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id: { type: string, format: uuid }
+                channel: { type: string, enum: [email, phone] }
+              required: [user_id, channel]
+      responses:
+        '200':
+          description: OTP sent
+          content:
+            application/json:
+              example: { "message": "OTP sent successfully." }
+        '400': { description: Invalid channel }
+
+  /devices/register:
+    post:
+      summary: Register device to user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_fingerprint: { type: string }
+                os_type: { type: string }
+                otp: { type: string }
+              required: [device_fingerprint, os_type, otp]
+      responses:
+        '201':
+          description: Device registered
+          content:
+            application/json:
+              example: { "device_id": "uuid", "status": "active" }
+        '400': { description: Invalid OTP }
+        '409': { description: Device already registered }
+
+  /users/me:
+    get:
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              example:
+                user_id: "uuid"
+                full_name: "string"
+                email: "string"
+                phone_number: "string"
+                cnic: "string"
+                date_of_birth: "string"
+                kyc_status: "string"
+                registered_at: "timestamp"
+                last_login_at: "timestamp"
+                status: "string"
+
+  ########################
+  # Wallet Management
+  ########################
+
+  /wallets:
+    get:
+      summary: Get wallet details
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wallet details
+          content:
+            application/json:
+              example:
+                wallet_id: "uuid"
+                available_balance: 5000
+                pending_balance: 200
+                currency_code: "PKR"
+                status: "active"
+                created_at: "timestamp"
+                updated_at: "timestamp"
+        '404': { description: Wallet not found }
+
+  /wallets/transactions:
+    get:
+      summary: Get transaction history
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: start_date
+          schema: { type: string, format: date }
+        - in: query
+          name: end_date
+          schema: { type: string, format: date }
+        - in: query
+          name: type
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Transaction list
+          content:
+            application/json:
+              example:
+                transactions:
+                  - transaction_id: "uuid"
+                    transaction_type: "string"
+                    amount: 100
+                    status: "completed"
+                    created_at: "timestamp"
+                    completed_at: "timestamp"
+                total: 1
+                page: 1
+
+  ########################
+  # Payment & Transfers
+  ########################
+
+  /transactions/p2p:
+    post:
+      summary: Initiate P2P transfer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                receiver_phone_or_cnic: { type: string }
+                amount: { type: number }
+                description: { type: string }
+              required: [receiver_phone_or_cnic, amount]
+      responses:
+        '201':
+          description: Transfer successful
+          content:
+            application/json:
+              example:
+                transaction_id: "uuid"
+                status: "completed"
+                completed_at: "timestamp"
+        '400': { description: Insufficient balance }
+        '404': { description: Receiver not found }
+
+  /transactions/qr:
+    post:
+      summary: QR code payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                qr_data: { type: string }
+                amount: { type: number }
+      responses:
+        '201':
+          description: QR payment successful
+          content:
+            application/json:
+              example:
+                transaction_id: "uuid"
+                status: "completed"
+                receipt: {}
+
+  /transactions/bill:
+    post:
+      summary: Bill payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                provider_id: { type: string, format: uuid }
+                reference_number: { type: string }
+                amount: { type: number }
+              required: [provider_id, reference_number, amount]
+      responses:
+        '201':
+          description: Bill payment successful
+          content:
+            application/json:
+              example:
+                transaction_id: "uuid"
+                status: "completed"
+
+  /providers:
+    get:
+      summary: Get supported providers
+      responses:
+        '200':
+          description: List of providers
+          content:
+            application/json:
+              example:
+                providers:
+                  - provider_id: "uuid"
+                    name: "KElectric"
+                    type: "utility"
+
+  /transactions/raast:
+    post:
+      summary: Raast transfer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                receiver_iban: { type: string }
+                amount: { type: number }
+              required: [receiver_iban, amount]
+      responses:
+        '201':
+          description: Raast transfer successful
+          content:
+            application/json:
+              example:
+                transaction_id: "uuid"
+                status: "completed"
+
+  /transactions/link:
+    post:
+      summary: Generate payment link
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount: { type: number }
+                mode: { type: string, enum: [p2p, raast] }
+                description: { type: string }
+              required: [amount, mode]
+      responses:
+        '201':
+          description: Link generated
+          content:
+            application/json:
+              example: { "link": "https://geopay.link/pay/abc123" }
+
+  ########################
+  # Virtual Cards
+  ########################
+
+  /cards/issue:
+    post:
+      summary: Issue virtual card
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                wallet_id: { type: string, format: uuid }
+                card_type: { type: string, enum: [VISA, MasterCard, PayPak] }
+              required: [wallet_id, card_type]
+      responses:
+        '201':
+          description: Card issued
+          content:
+            application/json:
+              example:
+                card_id: "uuid"
+                card_number: "string"
+                expiry_date: "string"
+                cvv: "string"
+                is_active: true
+                card_type: "VISA"
+        '403': { description: KYC not verified }
+
+  /cards/{card_id}/freeze:
+    patch:
+      summary: Freeze/unfreeze card
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: card_id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                freeze: { type: boolean }
+              required: [freeze]
+      responses:
+        '200':
+          description: Freeze status updated
+          content:
+            application/json:
+              example: { "card_id": "uuid", "is_active": false }
+
+  /cards/limits:
+    get:
+      summary: Get card limits
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Card limits
+          content:
+            application/json:
+              example:
+                card_id: "uuid"
+                daily_limit: 10000
+                transaction_limit: 5000
+
+  /cards:
+    get:
+      summary: Get all user cards
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of cards
+          content:
+            application/json:
+              example:
+                cards:
+                  - card_id: "uuid"
+                    card_number: "****1234"
+                    expiry_date: "12/25"
+                    is_active: true
+                    status: "active"
+                    updated_at: "timestamp"
+
+  ########################
+  # Notifications
+  ########################
+
+  /notifications:
+    get:
+      summary: Get notifications
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notifications list
+          content:
+            application/json:
+              example:
+                notifications:
+                  - notification_id: "uuid"
+                    title: "Payment received"
+                    message: "You received 500 PKR"
+                    type: "transaction"
+                    created_at: "timestamp"
+                total: 1
+
+  ########################
+  # Advanced Features
+  ########################
+
+  /users/2fa/setup:
+    post:
+      summary: Enable/disable 2FA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id: { type: string, format: uuid }
+                enable: { type: boolean }
+              required: [user_id, enable]
+      responses:
+        '200':
+          description: 2FA status updated
+          content:
+            application/json:
+              example: { "message": "2FA enabled successfully." }
+
+  /security/logs:
+    get:
+      summary: Retrieve user security logs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Security logs
+          content:
+            application/json:
+              example:
+                logs:
+                  - log_id: "uuid"
+                    action: "login"
+                    timestamp: "timestamp"
+                    device: "Android"
