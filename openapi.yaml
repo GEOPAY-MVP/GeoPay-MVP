@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: GeoPay API
-  description: RESTful API contract for the GeoPay MVP backend (corrected from review).
-  version: 1.0.0
+  description: RESTful API contract for the GeoPay MVP backend (fully compliant with review).
+  version: 2.0.0
   contact:
     name: GeoPay Private Limited
 
@@ -20,9 +20,14 @@ security:
   - bearerAuth: []
 
 paths:
+  # ==========================================
+  # USER AUTHENTICATION & ONBOARDING
+  # ==========================================
+  
   /users/register:
     post:
-      summary: Register user (Step 1 - email + password)
+      summary: Register user (Step 1 - email + password only)
+      security: []
       requestBody:
         required: true
         content:
@@ -32,8 +37,10 @@ paths:
               properties:
                 email:
                   type: string
+                  format: email
                 password:
                   type: string
+                  minLength: 8
               required:
                 - email
                 - password
@@ -44,6 +51,7 @@ paths:
             application/json:
               example:
                 message: "Registration started. Please upload CNIC."
+                session_token: "temp_session_token_for_step_2"
         '400':
           description: Invalid email/password format
         '409':
@@ -51,25 +59,27 @@ paths:
 
   /users/register-cnic:
     post:
-      summary: Upload CNIC (Step 2)
+      summary: Upload CNIC (Step 2 - OCR extraction)
+      security: []
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
               properties:
-                email:
+                session_token:
                   type: string
+                  description: Temporary token from Step 1
                 cnic_image:
                   type: string
-                  format: byte
+                  format: binary
               required:
-                - email
+                - session_token
                 - cnic_image
       responses:
         '201':
-          description: CNIC captured
+          description: CNIC captured and OCR performed
           content:
             application/json:
               schema:
@@ -80,24 +90,38 @@ paths:
                     format: uuid
                   full_name:
                     type: string
+                  cnic:
+                    type: string
                   date_of_birth:
                     type: string
                     format: date
+                  address:
+                    type: string
                   kyc_status:
                     type: string
                     enum:
                       - pending
-                      - verified
                   message:
                     type: string
+              example:
+                user_id: "123e4567-e89b-12d3-a456-426614174000"
+                full_name: "Ahmed Khan"
+                cnic: "12345-6789012-3"
+                date_of_birth: "1990-01-15"
+                address: "House 123, Street 45, Islamabad"
+                kyc_status: "pending"
+                message: "CNIC registered. Please complete biometric verification."
         '400':
-          description: Invalid CNIC image
+          description: Invalid CNIC image or OCR failed
+        '401':
+          description: Invalid session token
         '409':
           description: CNIC already registered
 
   /users/verify-biometric:
     post:
-      summary: Simulate biometric verification
+      summary: Complete biometric verification (Step 3)
+      security: []
       requestBody:
         required: true
         content:
@@ -110,26 +134,28 @@ paths:
                   format: uuid
                 biometric_token:
                   type: string
+                  description: Token from NADRA biometric verification service
               required:
                 - user_id
                 - biometric_token
       responses:
         '200':
-          description: Biometric verified
+          description: Biometric verified, KYC completed
           content:
             application/json:
               example:
-                user_id: "uuid"
+                user_id: "123e4567-e89b-12d3-a456-426614174000"
                 kyc_status: "verified"
-                message: "Biometric verified successfully."
+                message: "KYC verification completed successfully."
         '400':
           description: Invalid biometric token
-        '401':
-          description: Unauthorized session
+        '404':
+          description: User not found
 
   /users/login:
     post:
       summary: Login with email/phone + password/PIN
+      security: []
       requestBody:
         required: true
         content:
@@ -141,24 +167,86 @@ paths:
                   type: string
                 password_or_pin:
                   type: string
+                device_fingerprint:
+                  type: string
+                  description: Unique device identifier
               required:
                 - email_or_phone
                 - password_or_pin
+                - device_fingerprint
       responses:
         '200':
-          description: Successful login
+          description: Login successful, device verification required
           content:
             application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                    format: uuid
+                  temp_token:
+                    type: string
+                    description: Temporary token for OTP verification
+                  requires_otp:
+                    type: boolean
+                  message:
+                    type: string
               example:
-                user_id: "uuid"
-                token: "jwt"
-                last_login_at: "timestamp"
+                user_id: "123e4567-e89b-12d3-a456-426614174000"
+                temp_token: "temp_jwt_token"
+                requires_otp: true
+                message: "OTP sent to registered email/phone for device verification."
         '401':
           description: Invalid credentials
 
+  /users/login-biometric:
+    post:
+      summary: Login with biometric authentication
+      security: []
+      description: |
+        Biometric login flow:
+        1. User provides email/phone and device fingerprint
+        2. Backend generates a challenge token
+        3. User authenticates locally on device using biometric
+        4. Device signs the challenge with stored biometric key
+        5. Backend verifies the signature against stored public key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email_or_phone:
+                  type: string
+                device_fingerprint:
+                  type: string
+                challenge_response:
+                  type: string
+                  description: Signed challenge token from device biometric authentication
+              required:
+                - email_or_phone
+                - device_fingerprint
+                - challenge_response
+      responses:
+        '200':
+          description: Biometric login successful
+          content:
+            application/json:
+              example:
+                user_id: "123e4567-e89b-12d3-a456-426614174000"
+                token: "jwt_token"
+                last_login_at: "2025-10-01T10:30:00Z"
+        '401':
+          description: Invalid biometric authentication
+        '404':
+          description: Device not registered for biometric login
+
   /users/send-otp:
     post:
-      summary: Send OTP for login or device verification
+      summary: Send OTP for login, device verification, or 2FA
+      security: []
       requestBody:
         required: true
         content:
@@ -173,25 +261,35 @@ paths:
                   type: string
                   enum:
                     - email
-                    - phone
+                    - sms
+                purpose:
+                  type: string
+                  enum:
+                    - device_verification
+                    - login
+                    - transaction
+                    - password_reset
               required:
                 - user_id
                 - channel
+                - purpose
       responses:
         '200':
-          description: OTP sent
+          description: OTP sent successfully
           content:
             application/json:
               example:
-                message: "OTP sent successfully."
+                message: "OTP sent successfully to registered email/phone."
+                expires_in: 300
         '400':
-          description: Invalid channel
+          description: Invalid channel or purpose
+        '404':
+          description: User not found
 
-  /devices/register:
+  /users/verify-otp:
     post:
-      summary: Register device to user
-      security:
-        - bearerAuth: []
+      summary: Verify OTP and complete login/device registration
+      security: []
       requestBody:
         required: true
         content:
@@ -199,28 +297,31 @@ paths:
             schema:
               type: object
               properties:
-                device_fingerprint:
+                user_id:
                   type: string
-                os_type:
-                  type: string
+                  format: uuid
                 otp:
                   type: string
+                temp_token:
+                  type: string
+                  description: Temporary token from login API
               required:
-                - device_fingerprint
-                - os_type
+                - user_id
                 - otp
+                - temp_token
       responses:
-        '201':
-          description: Device registered
+        '200':
+          description: OTP verified, full access granted
           content:
             application/json:
               example:
-                device_id: "uuid"
-                status: "active"
+                user_id: "123e4567-e89b-12d3-a456-426614174000"
+                token: "full_jwt_token"
+                last_login_at: "2025-10-01T10:30:00Z"
         '400':
-          description: Invalid OTP
-        '409':
-          description: Device already registered
+          description: Invalid or expired OTP
+        '401':
+          description: Invalid temp token
 
   /users/me:
     get:
@@ -233,48 +334,199 @@ paths:
           content:
             application/json:
               example:
-                user_id: "uuid"
-                full_name: "string"
-                email: "string"
-                phone_number: "string"
-                cnic: "string"
-                date_of_birth: "string"
-                kyc_status: "string"
-                registered_at: "timestamp"
-                last_login_at: "timestamp"
-                status: "string"
+                user_id: "123e4567-e89b-12d3-a456-426614174000"
+                full_name: "Ahmed Khan"
+                email: "ahmed@example.com"
+                phone_number: "+923001234567"
+                cnic: "12345-6789012-3"
+                date_of_birth: "1990-01-15"
+                address: "House 123, Street 45, Islamabad"
+                kyc_status: "verified"
+                registered_at: "2025-09-15T08:00:00Z"
+                last_login_at: "2025-10-01T10:30:00Z"
+                status: "active"
+        '401':
+          description: Unauthorized
+
+  /users/2fa/setup:
+    post:
+      summary: Enable/disable 2FA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enable:
+                  type: boolean
+                method:
+                  type: string
+                  enum:
+                    - sms
+                    - email
+                    - authenticator
+              required:
+                - enable
+      responses:
+        '200':
+          description: 2FA status updated
+          content:
+            application/json:
+              example:
+                message: "2FA enabled successfully."
+                qr_code: "data:image/png;base64,..." 
+        '400':
+          description: Invalid request
+
+  # ==========================================
+  # DEVICE MANAGEMENT
+  # ==========================================
+
+  /devices/register:
+    post:
+      summary: Register device to user (one device per user at a time)
+      security:
+        - bearerAuth: []
+      description: |
+        Device registration flow:
+        1. User must be logged in (JWT required)
+        2. OTP is sent to user's registered email/phone
+        3. User provides OTP to complete device registration
+        4. If another device is already registered, it will be deactivated
+        5. Only one device can be active per user at a time
+        6. Device is automatically unregistered on logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_fingerprint:
+                  type: string
+                  description: Unique device identifier
+                device_name:
+                  type: string
+                  description: User-friendly device name
+                os_type:
+                  type: string
+                  enum:
+                    - iOS
+                    - Android
+                    - Web
+                otp:
+                  type: string
+                biometric_public_key:
+                  type: string
+                  description: Public key for biometric authentication (optional)
+              required:
+                - device_fingerprint
+                - os_type
+                - otp
+      responses:
+        '201':
+          description: Device registered successfully
+          content:
+            application/json:
+              example:
+                device_id: "device-uuid"
+                status: "active"
+                message: "Device registered. Previous devices have been deactivated."
+        '400':
+          description: Invalid OTP
+        '409':
+          description: Device already registered to another user
+
+  /devices/unregister:
+    post:
+      summary: Unregister current device (logout)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                device_fingerprint:
+                  type: string
+              required:
+                - device_fingerprint
+      responses:
+        '200':
+          description: Device unregistered
+          content:
+            application/json:
+              example:
+                message: "Device unregistered successfully."
+        '404':
+          description: Device not found
+
+  /devices:
+    get:
+      summary: Get all devices for current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of devices
+          content:
+            application/json:
+              example:
+                devices:
+                  - device_id: "device-uuid"
+                    device_name: "iPhone 13"
+                    device_fingerprint: "abc123xyz"
+                    os_type: "iOS"
+                    status: "active"
+                    registered_at: "2025-10-01T10:00:00Z"
+                    last_active: "2025-10-01T10:30:00Z"
+
+  # ==========================================
+  # WALLET MANAGEMENT
+  # ==========================================
 
   /wallets:
     get:
-      summary: Get wallet details
+      summary: Get wallet details for authenticated user
       security:
         - bearerAuth: []
+      description: Returns wallet for the authenticated user only (verified via JWT)
       responses:
         '200':
           description: Wallet details
           content:
             application/json:
               example:
-                wallet_id: "uuid"
-                available_balance: 5000
-                pending_balance: 200
+                wallet_id: "wallet-uuid"
+                user_id: "123e4567-e89b-12d3-a456-426614174000"
+                available_balance: 5000.00
+                pending_balance: 200.00
                 currency_code: "PKR"
                 status: "active"
-                created_at: "timestamp"
-                updated_at: "timestamp"
+                created_at: "2025-09-15T08:00:00Z"
+                updated_at: "2025-10-01T10:30:00Z"
         '404':
           description: Wallet not found
+        '401':
+          description: Unauthorized
 
   /wallets/transactions:
     get:
-      summary: Get transaction history
+      summary: Get transaction history for authenticated user's wallet
       security:
         - bearerAuth: []
+      description: Returns transactions for the authenticated user's wallet only (verified via JWT)
       parameters:
         - in: query
           name: search
           schema:
             type: string
+          description: Search by receiver name, transaction ID, or description
         - in: query
           name: start_date
           schema:
@@ -289,14 +541,30 @@ paths:
           name: type
           schema:
             type: string
+            enum:
+              - p2p
+              - qr
+              - bill
+              - raast
+              - card
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - pending
+              - completed
+              - failed
         - in: query
           name: page
           schema:
             type: integer
+            default: 1
         - in: query
           name: limit
           schema:
             type: integer
+            default: 20
       responses:
         '200':
           description: Transaction list
@@ -304,20 +572,30 @@ paths:
             application/json:
               example:
                 transactions:
-                  - transaction_id: "uuid"
-                    transaction_type: "string"
-                    amount: 100
+                  - transaction_id: "txn-uuid"
+                    transaction_type: "p2p"
+                    amount: 1000.00
+                    receiver_name: "Ali Ahmed"
+                    description: "Payment for lunch"
                     status: "completed"
-                    created_at: "timestamp"
-                    completed_at: "timestamp"
-                total: 1
+                    created_at: "2025-10-01T09:00:00Z"
+                    completed_at: "2025-10-01T09:00:15Z"
+                total: 45
                 page: 1
+                pages: 3
+        '401':
+          description: Unauthorized
+
+  # ==========================================
+  # PAYMENT & TRANSFER SERVICES
+  # ==========================================
 
   /transactions/p2p:
     post:
       summary: Initiate P2P transfer
       security:
         - bearerAuth: []
+      description: Transfer from authenticated user's wallet to another GeoPay user
       requestBody:
         required: true
         content:
@@ -327,10 +605,17 @@ paths:
               properties:
                 receiver_phone_or_cnic:
                   type: string
+                  description: Receiver's phone number or CNIC
                 amount:
                   type: number
+                  format: double
+                  minimum: 1
                 description:
                   type: string
+                  maxLength: 200
+                otp:
+                  type: string
+                  description: OTP for transaction verification (if 2FA enabled)
               required:
                 - receiver_phone_or_cnic
                 - amount
@@ -340,19 +625,24 @@ paths:
           content:
             application/json:
               example:
-                transaction_id: "uuid"
+                transaction_id: "txn-uuid"
                 status: "completed"
-                completed_at: "timestamp"
+                amount: 1000.00
+                receiver_name: "Ali Ahmed"
+                completed_at: "2025-10-01T10:35:00Z"
         '400':
-          description: Insufficient balance
+          description: Insufficient balance or invalid amount
         '404':
           description: Receiver not found
+        '401':
+          description: Unauthorized
 
   /transactions/qr:
     post:
       summary: QR code payment
       security:
         - bearerAuth: []
+      description: Pay via scanned QR code
       requestBody:
         required: true
         content:
@@ -362,8 +652,14 @@ paths:
               properties:
                 qr_data:
                   type: string
+                  description: Encrypted QR code data
                 amount:
                   type: number
+                  format: double
+                  minimum: 1
+                otp:
+                  type: string
+                  description: OTP for transaction verification (if 2FA enabled)
               required:
                 - qr_data
                 - amount
@@ -373,15 +669,26 @@ paths:
           content:
             application/json:
               example:
-                transaction_id: "uuid"
+                transaction_id: "txn-uuid"
                 status: "completed"
-                receipt: {}
+                merchant_name: "ABC Store"
+                amount: 500.00
+                receipt:
+                  transaction_id: "txn-uuid"
+                  timestamp: "2025-10-01T10:35:00Z"
+                  merchant: "ABC Store"
+                  amount: 500.00
+        '400':
+          description: Invalid QR code or insufficient balance
+        '401':
+          description: Unauthorized
 
   /transactions/bill:
     post:
       summary: Bill payment
       security:
         - bearerAuth: []
+      description: Pay utility bills or mobile recharge
       requestBody:
         required: true
         content:
@@ -392,13 +699,20 @@ paths:
                 provider_id:
                   type: string
                   format: uuid
-                reference_number:
+                  description: ID from /providers endpoint
+                consumer_number:
                   type: string
+                  description: Consumer number or reference number
                 amount:
                   type: number
+                  format: double
+                  minimum: 1
+                otp:
+                  type: string
+                  description: OTP for transaction verification (if 2FA enabled)
               required:
                 - provider_id
-                - reference_number
+                - consumer_number
                 - amount
       responses:
         '201':
@@ -406,28 +720,25 @@ paths:
           content:
             application/json:
               example:
-                transaction_id: "uuid"
+                transaction_id: "txn-uuid"
                 status: "completed"
-
-  /providers:
-    get:
-      summary: Get supported providers
-      responses:
-        '200':
-          description: List of providers
-          content:
-            application/json:
-              example:
-                providers:
-                  - provider_id: "uuid"
-                    name: "KElectric"
-                    type: "utility"
+                provider_name: "K-Electric"
+                consumer_number: "12345678901"
+                amount: 2500.00
+                completed_at: "2025-10-01T10:35:00Z"
+        '400':
+          description: Invalid provider or insufficient balance
+        '404':
+          description: Provider not found
+        '401':
+          description: Unauthorized
 
   /transactions/raast:
     post:
       summary: Raast transfer
       security:
         - bearerAuth: []
+      description: Transfer to any bank account via RAAST
       requestBody:
         required: true
         content:
@@ -437,8 +748,18 @@ paths:
               properties:
                 receiver_iban:
                   type: string
+                  pattern: '^PK[0-9]{2}[A-Z]{4}[0-9]{16}$'
+                  description: Pakistani IBAN format
                 amount:
                   type: number
+                  format: double
+                  minimum: 1
+                description:
+                  type: string
+                  maxLength: 200
+                otp:
+                  type: string
+                  description: OTP for transaction verification (if 2FA enabled)
               required:
                 - receiver_iban
                 - amount
@@ -448,14 +769,23 @@ paths:
           content:
             application/json:
               example:
-                transaction_id: "uuid"
+                transaction_id: "txn-uuid"
                 status: "completed"
+                receiver_iban: "PK36SCBL0000001123456702"
+                receiver_bank: "Standard Chartered Bank"
+                amount: 5000.00
+                completed_at: "2025-10-01T10:35:00Z"
+        '400':
+          description: Invalid IBAN or insufficient balance
+        '401':
+          description: Unauthorized
 
   /transactions/link:
     post:
       summary: Generate payment link
       security:
         - bearerAuth: []
+      description: Create a shareable payment link for receiving money
       requestBody:
         required: true
         content:
@@ -465,29 +795,120 @@ paths:
               properties:
                 amount:
                   type: number
+                  format: double
+                  minimum: 1
                 mode:
                   type: string
                   enum:
                     - p2p
                     - raast
+                  description: Payment method for the link
                 description:
                   type: string
+                  maxLength: 200
+                expires_in:
+                  type: integer
+                  description: Expiry time in minutes (default 60)
+                  default: 60
               required:
                 - amount
                 - mode
       responses:
         '201':
-          description: Link generated
+          description: Payment link generated
           content:
             application/json:
               example:
-                link: "https://geopay.link/pay/abc123"
+                link_id: "link-uuid"
+                link: "https://geopay.link/pay/abc123xyz"
+                amount: 1000.00
+                mode: "p2p"
+                expires_at: "2025-10-01T11:35:00Z"
+        '400':
+          description: Invalid parameters
+        '401':
+          description: Unauthorized
+
+  /transactions/link/{link_id}/status:
+    get:
+      summary: Check payment link status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: link_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Link status
+          content:
+            application/json:
+              example:
+                link_id: "link-uuid"
+                status: "active"
+                amount: 1000.00
+                paid: false
+                expires_at: "2025-10-01T11:35:00Z"
+        '404':
+          description: Link not found
+
+  # ==========================================
+  # PROVIDERS
+  # ==========================================
+
+  /providers:
+    get:
+      summary: Get supported providers for bill payments
+      security: []
+      description: Returns all supported utility providers and network operators
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - utility
+              - telecom
+              - internet
+          description: Filter by provider type
+      responses:
+        '200':
+          description: List of providers
+          content:
+            application/json:
+              example:
+                providers:
+                  - provider_id: "provider-uuid-1"
+                    name: "K-Electric"
+                    type: "utility"
+                    logo_url: "https://cdn.geopay.com/logos/ke.png"
+                    service_type: "electricity"
+                  - provider_id: "provider-uuid-2"
+                    name: "PTCL"
+                    type: "telecom"
+                    logo_url: "https://cdn.geopay.com/logos/ptcl.png"
+                    service_type: "landline"
+                  - provider_id: "provider-uuid-3"
+                    name: "Jazz"
+                    type: "telecom"
+                    logo_url: "https://cdn.geopay.com/logos/jazz.png"
+                    service_type: "mobile"
+
+  # ==========================================
+  # VIRTUAL CARD MANAGEMENT
+  # ==========================================
 
   /cards/issue:
     post:
       summary: Issue virtual card
       security:
         - bearerAuth: []
+      description: |
+        Issues a virtual card linked to the authenticated user's wallet.
+        Requires KYC verification to be completed.
       requestBody:
         required: true
         content:
@@ -495,38 +916,114 @@ paths:
             schema:
               type: object
               properties:
-                wallet_id:
-                  type: string
-                  format: uuid
                 card_type:
                   type: string
                   enum:
                     - VISA
                     - MasterCard
                     - PayPak
+                card_name:
+                  type: string
+                  description: Custom name for the card
+                  maxLength: 50
               required:
-                - wallet_id
                 - card_type
       responses:
         '201':
-          description: Card issued
+          description: Card issued successfully
           content:
             application/json:
               example:
-                card_id: "uuid"
-                card_number: "string"
-                expiry_date: "string"
-                cvv: "string"
+                card_id: "card-uuid"
+                card_number: "4532-****-****-1234"
+                cardholder_name: "AHMED KHAN"
+                expiry_date: "12/28"
+                cvv: "***"
                 is_active: true
                 card_type: "VISA"
+                daily_limit: 50000.00
+                transaction_limit: 10000.00
+                issued_at: "2025-10-01T10:35:00Z"
         '403':
           description: KYC not verified
+        '401':
+          description: Unauthorized
+
+  /cards:
+    get:
+      summary: Get all cards for authenticated user
+      security:
+        - bearerAuth: []
+      description: Returns all cards owned by the authenticated user
+      responses:
+        '200':
+          description: List of user's cards
+          content:
+            application/json:
+              example:
+                cards:
+                  - card_id: "card-uuid-1"
+                    card_number: "4532-****-****-1234"
+                    cardholder_name: "AHMED KHAN"
+                    expiry_date: "12/28"
+                    is_active: true
+                    card_type: "VISA"
+                    status: "active"
+                    issued_at: "2025-09-15T08:00:00Z"
+                  - card_id: "card-uuid-2"
+                    card_number: "5425-****-****-5678"
+                    cardholder_name: "AHMED KHAN"
+                    expiry_date: "06/27"
+                    is_active: false
+                    card_type: "MasterCard"
+                    status: "frozen"
+                    issued_at: "2025-08-10T12:00:00Z"
+        '401':
+          description: Unauthorized
+
+  /cards/{card_id}:
+    get:
+      summary: Get specific card details
+      security:
+        - bearerAuth: []
+      description: Get details of a specific card owned by the authenticated user
+      parameters:
+        - in: path
+          name: card_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Card details
+          content:
+            application/json:
+              example:
+                card_id: "card-uuid"
+                card_number: "4532-1234-5678-1234"
+                cardholder_name: "AHMED KHAN"
+                expiry_date: "12/28"
+                cvv: "123"
+                is_active: true
+                card_type: "VISA"
+                daily_limit: 50000.00
+                transaction_limit: 10000.00
+                daily_spent: 5000.00
+                status: "active"
+        '404':
+          description: Card not found
+        '403':
+          description: Card does not belong to authenticated user
+        '401':
+          description: Unauthorized
 
   /cards/{card_id}/freeze:
     patch:
-      summary: Freeze/unfreeze card
+      summary: Freeze or unfreeze card
       security:
         - bearerAuth: []
+      description: Freeze or unfreeze a card owned by the authenticated user
       parameters:
         - in: path
           name: card_id
@@ -543,6 +1040,7 @@ paths:
               properties:
                 freeze:
                   type: boolean
+                  description: true to freeze, false to unfreeze
               required:
                 - freeze
       responses:
@@ -551,48 +1049,71 @@ paths:
           content:
             application/json:
               example:
-                card_id: "uuid"
+                card_id: "card-uuid"
                 is_active: false
+                status: "frozen"
+                message: "Card frozen successfully."
+        '404':
+          description: Card not found
+        '403':
+          description: Card does not belong to authenticated user
+        '401':
+          description: Unauthorized
 
   /cards/limits:
     get:
-      summary: Get card limits
+      summary: Get card limits for authenticated user
       security:
         - bearerAuth: []
+      description: |
+        Get current card spending limits enforced by GeoPay.
+        Users can only view limits, not modify them.
       responses:
         '200':
           description: Card limits
           content:
             application/json:
               example:
-                card_id: "uuid"
-                daily_limit: 10000
-                transaction_limit: 5000
+                default_daily_limit: 50000.00
+                default_transaction_limit: 10000.00
+                daily_spent_today: 5000.00
+                remaining_daily_limit: 45000.00
+                currency: "PKR"
+                reset_time: "2025-10-02T00:00:00Z"
+        '401':
+          description: Unauthorized
 
-  /cards:
-    get:
-      summary: Get all user cards
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: List of cards
-          content:
-            application/json:
-              example:
-                cards:
-                  - card_id: "uuid"
-                    card_number: "****1234"
-                    expiry_date: "12/25"
-                    is_active: true
-                    status: "active"
-                    updated_at: "timestamp"
+  # ==========================================
+  # NOTIFICATIONS
+  # ==========================================
 
   /notifications:
     get:
-      summary: Get notifications
+      summary: Get notifications for authenticated user
       security:
         - bearerAuth: []
+      description: |
+        Retrieve notifications for the authenticated user.
+        This endpoint is for historical/missed notifications.
+        Real-time notifications are delivered via Firebase Cloud Messaging (FCM).
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - read
+              - unread
       responses:
         '200':
           description: Notifications list
@@ -600,18 +1121,536 @@ paths:
             application/json:
               example:
                 notifications:
-                  - notification_id: "uuid"
-                    title: "Payment received"
-                    message: "You received 500 PKR"
+                  - notification_id: "notif-uuid-1"
+                    title: "Payment Received"
+                    message: "You received PKR 1,000 from Ali Ahmed"
                     type: "transaction"
-                    created_at: "timestamp"
-                total: 1
+                    status: "unread"
+                    created_at: "2025-10-01T10:30:00Z"
+                  - notification_id: "notif-uuid-2"
+                    title: "Card Frozen"
+                    message: "Your VISA card ending in 1234 has been frozen"
+                    type: "security"
+                    status: "read"
+                    created_at: "2025-09-30T15:20:00Z"
+                total: 45
+                page: 1
+                unread_count: 12
+        '401':
+          description: Unauthorized
 
-  /users/2fa/setup:
-    post:
-      summary: Enable/disable 2FA
+  /notifications/{notification_id}/read:
+    patch:
+      summary: Mark notification as read
       security:
         - bearerAuth: []
+      parameters:
+        - in: path
+          name: notification_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              example:
+                notification_id: "notif-uuid"
+                status: "read"
+        '404':
+          description: Notification not found
+        '401':
+          description: Unauthorized
+
+  /notifications/fcm-token:
+    post:
+      summary: Register FCM token for push notifications
+      security:
+        - bearerAuth: []
+      description: |
+        Register Firebase Cloud Messaging token for receiving real-time push notifications.
+        This token is associated with the user's current device.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fcm_token:
+                  type: string
+                  description: Firebase Cloud Messaging device token
+                device_fingerprint:
+                  type: string
+                  description: Device identifier to associate token with
+              required:
+                - fcm_token
+                - device_fingerprint
+      responses:
+        '200':
+          description: FCM token registered
+          content:
+            application/json:
+              example:
+                message: "Push notification token registered successfully."
+        '400':
+          description: Invalid token or device
+        '401':
+          description: Unauthorized
+
+  # ==========================================
+  # SECURITY
+  # ==========================================
+
+  /security/logs:
+    get:
+      summary: Retrieve security logs for authenticated user
+      security:
+        - bearerAuth: []
+      description: View security events and activity logs
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: action_type
+          schema:
+            type: string
+            enum:
+              - login
+              - logout
+              - device_register
+              - password_change
+              - transaction
+              - card_action
+      responses:
+        '200':
+          description: Security logs
+          content:
+            application/json:
+              example:
+                logs:
+                  - log_id: "log-uuid-1"
+                    action: "login"
+                    timestamp: "2025-10-01T10:30:00Z"
+                    device: "iPhone 13"
+                    ip_address: "192.168.1.100"
+                    location: "Islamabad, Pakistan"
+                    status: "success"
+                  - log_id: "log-uuid-2"
+                    action: "transaction"
+                    timestamp: "2025-10-01T10:25:00Z"
+                    device: "iPhone 13"
+                    details: "P2P transfer of PKR 1,000"
+                    status: "success"
+                total: 120
+                page: 1
+        '401':
+          description: Unauthorized
+
+  # ==========================================
+  # ADVANCED FEATURES (FR-018, FR-019)
+  # ==========================================
+
+  /analytics/spending:
+    get:
+      summary: Get spending analytics (FR-018)
+      security:
+        - bearerAuth: []
+      description: |
+        Provides spending analytics and insights for the authenticated user.
+        Includes categorized spending, trends, and predictions.
+      parameters:
+        - in: query
+          name: period
+          schema:
+            type: string
+            enum:
+              - week
+              - month
+              - quarter
+              - year
+            default: month
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Spending analytics
+          content:
+            application/json:
+              example:
+                period: "month"
+                total_spent: 45000.00
+                total_received: 60000.00
+                net_flow: 15000.00
+                categories:
+                  - category: "Bills & Utilities"
+                    amount: 12000.00
+                    percentage: 26.67
+                    transaction_count: 5
+                  - category: "P2P Transfers"
+                    amount: 20000.00
+                    percentage: 44.44
+                    transaction_count: 15
+                  - category: "Shopping"
+                    amount: 8000.00
+                    percentage: 17.78
+                    transaction_count: 8
+                  - category: "Mobile Recharge"
+                    amount: 5000.00
+                    percentage: 11.11
+                    transaction_count: 10
+                top_merchants:
+                  - merchant: "K-Electric"
+                    amount: 8000.00
+                    transactions: 2
+                  - merchant: "Ali Ahmed"
+                    amount: 5000.00
+                    transactions: 5
+                spending_trend:
+                  - date: "2025-09-01"
+                    amount: 15000.00
+                  - date: "2025-09-08"
+                    amount: 12000.00
+                  - date: "2025-09-15"
+                    amount: 10000.00
+                  - date: "2025-09-22"
+                    amount: 8000.00
+                predictions:
+                  next_month_estimate: 43000.00
+                  budget_recommendation: 40000.00
+        '401':
+          description: Unauthorized
+
+  /budgets:
+    get:
+      summary: Get user budgets (FR-018)
+      security:
+        - bearerAuth: []
+      description: Retrieve all budgets set by the user
+      responses:
+        '200':
+          description: List of budgets
+          content:
+            application/json:
+              example:
+                budgets:
+                  - budget_id: "budget-uuid-1"
+                    category: "Bills & Utilities"
+                    limit: 15000.00
+                    spent: 12000.00
+                    remaining: 3000.00
+                    period: "monthly"
+                    alert_threshold: 80
+                    status: "on_track"
+                  - budget_id: "budget-uuid-2"
+                    category: "Shopping"
+                    limit: 10000.00
+                    spent: 11000.00
+                    remaining: -1000.00
+                    period: "monthly"
+                    alert_threshold: 80
+                    status: "exceeded"
+        '401':
+          description: Unauthorized
+
+    post:
+      summary: Create a new budget (FR-018)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category:
+                  type: string
+                  enum:
+                    - Bills & Utilities
+                    - P2P Transfers
+                    - Shopping
+                    - Mobile Recharge
+                    - Entertainment
+                    - Food & Dining
+                    - Other
+                limit:
+                  type: number
+                  format: double
+                  minimum: 1
+                period:
+                  type: string
+                  enum:
+                    - weekly
+                    - monthly
+                    - yearly
+                alert_threshold:
+                  type: integer
+                  description: Alert when spending reaches this % (e.g., 80 for 80%)
+                  minimum: 1
+                  maximum: 100
+                  default: 80
+              required:
+                - category
+                - limit
+                - period
+      responses:
+        '201':
+          description: Budget created
+          content:
+            application/json:
+              example:
+                budget_id: "budget-uuid"
+                category: "Bills & Utilities"
+                limit: 15000.00
+                period: "monthly"
+                alert_threshold: 80
+                message: "Budget created successfully."
+        '400':
+          description: Invalid parameters
+        '409':
+          description: Budget already exists for this category and period
+        '401':
+          description: Unauthorized
+
+  /budgets/{budget_id}:
+    put:
+      summary: Update budget (FR-018)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: budget_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit:
+                  type: number
+                  format: double
+                alert_threshold:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+      responses:
+        '200':
+          description: Budget updated
+          content:
+            application/json:
+              example:
+                budget_id: "budget-uuid"
+                limit: 18000.00
+                alert_threshold: 85
+                message: "Budget updated successfully."
+        '404':
+          description: Budget not found
+        '401':
+          description: Unauthorized
+
+    delete:
+      summary: Delete budget (FR-018)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: budget_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Budget deleted
+          content:
+            application/json:
+              example:
+                message: "Budget deleted successfully."
+        '404':
+          description: Budget not found
+        '401':
+          description: Unauthorized
+
+  /rewards:
+    get:
+      summary: Get user rewards and cashback (FR-019)
+      security:
+        - bearerAuth: []
+      description: Retrieve rewards, cashback, and loyalty points
+      responses:
+        '200':
+          description: Rewards summary
+          content:
+            application/json:
+              example:
+                total_points: 1250
+                points_value: 125.00
+                tier: "Silver"
+                next_tier: "Gold"
+                points_to_next_tier: 750
+                cashback_earned_this_month: 500.00
+                total_cashback_earned: 2500.00
+                active_offers:
+                  - offer_id: "offer-uuid-1"
+                    title: "5% Cashback on Bill Payments"
+                    description: "Get 5% cashback on all utility bill payments"
+                    cashback_rate: 5
+                    valid_until: "2025-10-31T23:59:59Z"
+                    category: "bills"
+                  - offer_id: "offer-uuid-2"
+                    title: "10 Points per Transaction"
+                    description: "Earn 10 loyalty points on every P2P transfer"
+                    points_per_transaction: 10
+                    valid_until: "2025-10-31T23:59:59Z"
+                    category: "p2p"
+        '401':
+          description: Unauthorized
+
+  /rewards/history:
+    get:
+      summary: Get rewards history (FR-019)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - cashback
+              - points
+              - all
+            default: all
+      responses:
+        '200':
+          description: Rewards history
+          content:
+            application/json:
+              example:
+                rewards:
+                  - reward_id: "reward-uuid-1"
+                    type: "cashback"
+                    amount: 50.00
+                    transaction_id: "txn-uuid"
+                    description: "5% cashback on K-Electric bill payment"
+                    earned_at: "2025-09-25T10:00:00Z"
+                    status: "credited"
+                  - reward_id: "reward-uuid-2"
+                    type: "points"
+                    points: 100
+                    transaction_id: "txn-uuid-2"
+                    description: "Loyalty points for P2P transfer"
+                    earned_at: "2025-09-24T14:30:00Z"
+                    status: "credited"
+                total: 35
+                page: 1
+        '401':
+          description: Unauthorized
+
+  /rewards/redeem:
+    post:
+      summary: Redeem reward points (FR-019)
+      security:
+        - bearerAuth: []
+      description: Convert loyalty points to wallet balance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                points:
+                  type: integer
+                  minimum: 100
+                  description: Minimum 100 points required for redemption
+              required:
+                - points
+      responses:
+        '200':
+          description: Points redeemed successfully
+          content:
+            application/json:
+              example:
+                points_redeemed: 1000
+                amount_credited: 100.00
+                remaining_points: 250
+                transaction_id: "txn-uuid"
+                message: "PKR 100.00 credited to your wallet."
+        '400':
+          description: Insufficient points or invalid amount
+        '401':
+          description: Unauthorized
+
+  /referrals:
+    get:
+      summary: Get referral information (FR-019)
+      security:
+        - bearerAuth: []
+      description: Get user's referral code and referral statistics
+      responses:
+        '200':
+          description: Referral information
+          content:
+            application/json:
+              example:
+                referral_code: "AHMED2025"
+                referral_link: "https://geopay.app/ref/AHMED2025"
+                total_referrals: 8
+                active_referrals: 6
+                total_earned: 800.00
+                referral_bonus_per_user: 100.00
+                referrals:
+                  - referred_user: "Ali A."
+                    joined_at: "2025-09-20T10:00:00Z"
+                    status: "active"
+                    bonus_earned: 100.00
+                  - referred_user: "Sara K."
+                    joined_at: "2025-09-15T14:30:00Z"
+                    status: "active"
+                    bonus_earned: 100.00
+        '401':
+          description: Unauthorized
+
+  /referrals/apply:
+    post:
+      summary: Apply referral code during registration
+      security: []
+      description: Apply a referral code when a new user registers
       requestBody:
         required: true
         content:
@@ -622,32 +1661,23 @@ paths:
                 user_id:
                   type: string
                   format: uuid
-                enable:
-                  type: boolean
+                  description: New user's ID from registration
+                referral_code:
+                  type: string
+                  description: Referral code from existing user
               required:
                 - user_id
-                - enable
+                - referral_code
       responses:
         '200':
-          description: 2FA status updated
+          description: Referral code applied
           content:
             application/json:
               example:
-                message: "2FA enabled successfully."
-
-  /security/logs:
-    get:
-      summary: Retrieve user security logs
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Security logs
-          content:
-            application/json:
-              example:
-                logs:
-                  - log_id: "uuid"
-                    action: "login"
-                    timestamp: "timestamp"
-                    device: "Android"
+                message: "Referral code applied successfully."
+                bonus_pending: 100.00
+                bonus_conditions: "Complete your first transaction to receive PKR 100 bonus."
+        '400':
+          description: Invalid referral code
+        '404':
+          description: User not found
