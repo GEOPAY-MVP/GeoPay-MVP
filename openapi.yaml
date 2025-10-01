@@ -1,14 +1,22 @@
 openapi: 3.0.3
 info:
   title: GeoPay API
-  description: RESTful API contract for the GeoPay MVP backend (fully compliant with review).
+  description: RESTful API contract for the GeoPay MVP backend.
   version: 2.0.0
   contact:
-    name: GeoPay Private Limited
+    name: GeoPay
 
 servers:
   - url: /api/v1
-
+tags:
+  - name: User Authentication & Onboarding
+  - name: Device Management
+  - name: Wallet Management
+  - name: PAYMENT & TRANSFER SERVICES
+  - name: PROVIDERS
+  - name: VIRTUAL CARD MANAGEMENT
+  - name: Notifications
+  - name: Security
 components:
   securitySchemes:
     bearerAuth:
@@ -27,6 +35,8 @@ paths:
   /users/register:
     post:
       summary: Register user (Step 1 - email + password only)
+      tags:
+        - User Authentication & Onboarding
       security: []
       requestBody:
         required: true
@@ -60,6 +70,8 @@ paths:
   /users/register-cnic:
     post:
       summary: Upload CNIC (Step 2 - OCR extraction)
+      tags:
+        - User Authentication & Onboarding
       security: []
       requestBody:
         required: true
@@ -121,6 +133,8 @@ paths:
   /users/verify-biometric:
     post:
       summary: Complete biometric verification (Step 3)
+      tags:
+        - User Authentication & Onboarding
       security: []
       requestBody:
         required: true
@@ -155,6 +169,8 @@ paths:
   /users/login:
     post:
       summary: Login with email/phone + password/PIN
+      tags:
+        - User Authentication & Onboarding
       security: []
       requestBody:
         required: true
@@ -203,6 +219,8 @@ paths:
   /users/login-biometric:
     post:
       summary: Login with biometric authentication
+      tags:
+        - User Authentication & Onboarding
       security: []
       description: |
         Biometric login flow:
@@ -246,6 +264,8 @@ paths:
   /users/send-otp:
     post:
       summary: Send OTP for login, device verification, or 2FA
+      tags:
+        - User Authentication & Onboarding
       security: []
       requestBody:
         required: true
@@ -289,6 +309,8 @@ paths:
   /users/verify-otp:
     post:
       summary: Verify OTP and complete login/device registration
+      tags:
+        - User Authentication & Onboarding
       security: []
       requestBody:
         required: true
@@ -326,6 +348,8 @@ paths:
   /users/me:
     get:
       summary: Get current user profile
+      tags:
+        - User Authentication & Onboarding
       security:
         - bearerAuth: []
       responses:
@@ -351,6 +375,8 @@ paths:
   /users/2fa/setup:
     post:
       summary: Enable/disable 2FA
+      tags:
+        - User Authentication & Onboarding
       security:
         - bearerAuth: []
       requestBody:
@@ -388,6 +414,8 @@ paths:
   /devices/register:
     post:
       summary: Register device to user (one device per user at a time)
+      tags:
+        - Device Management
       security:
         - bearerAuth: []
       description: |
@@ -443,6 +471,8 @@ paths:
   /devices/unregister:
     post:
       summary: Unregister current device (logout)
+      tags:
+        - Device Management
       security:
         - bearerAuth: []
       requestBody:
@@ -469,6 +499,8 @@ paths:
   /devices:
     get:
       summary: Get all devices for current user
+      tags:
+        - Device Management
       security:
         - bearerAuth: []
       responses:
@@ -493,6 +525,8 @@ paths:
   /wallets:
     get:
       summary: Get wallet details for authenticated user
+      tags:
+        - Wallet Management
       security:
         - bearerAuth: []
       description: Returns wallet for the authenticated user only (verified via JWT)
@@ -518,6 +552,8 @@ paths:
   /wallets/transactions:
     get:
       summary: Get transaction history for authenticated user's wallet
+      tags:
+        - Wallet Management
       security:
         - bearerAuth: []
       description: Returns transactions for the authenticated user's wallet only (verified via JWT)
@@ -593,6 +629,8 @@ paths:
   /transactions/p2p:
     post:
       summary: Initiate P2P transfer
+      tags:
+        - PAYMENT & TRANSFER SERVICES
       security:
         - bearerAuth: []
       description: Transfer from authenticated user's wallet to another GeoPay user
@@ -640,6 +678,8 @@ paths:
   /transactions/qr:
     post:
       summary: QR code payment
+      tags:
+        - PAYMENT & TRANSFER SERVICES
       security:
         - bearerAuth: []
       description: Pay via scanned QR code
@@ -686,6 +726,8 @@ paths:
   /transactions/bill:
     post:
       summary: Bill payment
+      tags:
+        - PAYMENT & TRANSFER SERVICES
       security:
         - bearerAuth: []
       description: Pay utility bills or mobile recharge
@@ -736,6 +778,8 @@ paths:
   /transactions/raast:
     post:
       summary: Raast transfer
+      tags:
+        - PAYMENT & TRANSFER SERVICES
       security:
         - bearerAuth: []
       description: Transfer to any bank account via RAAST
@@ -783,6 +827,8 @@ paths:
   /transactions/link:
     post:
       summary: Generate payment link
+      tags:
+        - PAYMENT & TRANSFER SERVICES
       security:
         - bearerAuth: []
       description: Create a shareable payment link for receiving money
@@ -832,6 +878,8 @@ paths:
   /transactions/link/{link_id}/status:
     get:
       summary: Check payment link status
+      tags:
+        - PAYMENT & TRANSFER SERVICES
       security:
         - bearerAuth: []
       parameters:
@@ -862,6 +910,8 @@ paths:
   /providers:
     get:
       summary: Get supported providers for bill payments
+      tags:
+        - PROVIDERS
       security: []
       description: Returns all supported utility providers and network operators
       parameters:
@@ -904,6 +954,8 @@ paths:
   /cards/issue:
     post:
       summary: Issue virtual card
+      tags:
+        - VIRTUAL CARD MANAGEMENT
       security:
         - bearerAuth: []
       description: |
@@ -952,6 +1004,8 @@ paths:
   /cards:
     get:
       summary: Get all cards for authenticated user
+      tags:
+        - VIRTUAL CARD MANAGEMENT
       security:
         - bearerAuth: []
       description: Returns all cards owned by the authenticated user
@@ -984,6 +1038,8 @@ paths:
   /cards/{card_id}:
     get:
       summary: Get specific card details
+      tags:
+        - VIRTUAL CARD MANAGEMENT
       security:
         - bearerAuth: []
       description: Get details of a specific card owned by the authenticated user
@@ -1021,6 +1077,8 @@ paths:
   /cards/{card_id}/freeze:
     patch:
       summary: Freeze or unfreeze card
+      tags:
+        - VIRTUAL CARD MANAGEMENT
       security:
         - bearerAuth: []
       description: Freeze or unfreeze a card owned by the authenticated user
@@ -1063,6 +1121,8 @@ paths:
   /cards/limits:
     get:
       summary: Get card limits for authenticated user
+      tags:
+        - VIRTUAL CARD MANAGEMENT
       security:
         - bearerAuth: []
       description: |
@@ -1090,6 +1150,8 @@ paths:
   /notifications:
     get:
       summary: Get notifications for authenticated user
+      tags:
+        - Notifications
       security:
         - bearerAuth: []
       description: |
@@ -1142,6 +1204,8 @@ paths:
   /notifications/{notification_id}/read:
     patch:
       summary: Mark notification as read
+      tags:
+        - Notifications
       security:
         - bearerAuth: []
       parameters:
@@ -1167,6 +1231,8 @@ paths:
   /notifications/fcm-token:
     post:
       summary: Register FCM token for push notifications
+      tags:
+        - Notifications
       security:
         - bearerAuth: []
       description: |
@@ -1207,6 +1273,8 @@ paths:
   /security/logs:
     get:
       summary: Retrieve security logs for authenticated user
+      tags:
+        - Security
       security:
         - bearerAuth: []
       description: View security events and activity logs
@@ -1256,428 +1324,3 @@ paths:
                 page: 1
         '401':
           description: Unauthorized
-
-  # ==========================================
-  # ADVANCED FEATURES (FR-018, FR-019)
-  # ==========================================
-
-  /analytics/spending:
-    get:
-      summary: Get spending analytics (FR-018)
-      security:
-        - bearerAuth: []
-      description: |
-        Provides spending analytics and insights for the authenticated user.
-        Includes categorized spending, trends, and predictions.
-      parameters:
-        - in: query
-          name: period
-          schema:
-            type: string
-            enum:
-              - week
-              - month
-              - quarter
-              - year
-            default: month
-        - in: query
-          name: start_date
-          schema:
-            type: string
-            format: date
-        - in: query
-          name: end_date
-          schema:
-            type: string
-            format: date
-      responses:
-        '200':
-          description: Spending analytics
-          content:
-            application/json:
-              example:
-                period: "month"
-                total_spent: 45000.00
-                total_received: 60000.00
-                net_flow: 15000.00
-                categories:
-                  - category: "Bills & Utilities"
-                    amount: 12000.00
-                    percentage: 26.67
-                    transaction_count: 5
-                  - category: "P2P Transfers"
-                    amount: 20000.00
-                    percentage: 44.44
-                    transaction_count: 15
-                  - category: "Shopping"
-                    amount: 8000.00
-                    percentage: 17.78
-                    transaction_count: 8
-                  - category: "Mobile Recharge"
-                    amount: 5000.00
-                    percentage: 11.11
-                    transaction_count: 10
-                top_merchants:
-                  - merchant: "K-Electric"
-                    amount: 8000.00
-                    transactions: 2
-                  - merchant: "Ali Ahmed"
-                    amount: 5000.00
-                    transactions: 5
-                spending_trend:
-                  - date: "2025-09-01"
-                    amount: 15000.00
-                  - date: "2025-09-08"
-                    amount: 12000.00
-                  - date: "2025-09-15"
-                    amount: 10000.00
-                  - date: "2025-09-22"
-                    amount: 8000.00
-                predictions:
-                  next_month_estimate: 43000.00
-                  budget_recommendation: 40000.00
-        '401':
-          description: Unauthorized
-
-  /budgets:
-    get:
-      summary: Get user budgets (FR-018)
-      security:
-        - bearerAuth: []
-      description: Retrieve all budgets set by the user
-      responses:
-        '200':
-          description: List of budgets
-          content:
-            application/json:
-              example:
-                budgets:
-                  - budget_id: "budget-uuid-1"
-                    category: "Bills & Utilities"
-                    limit: 15000.00
-                    spent: 12000.00
-                    remaining: 3000.00
-                    period: "monthly"
-                    alert_threshold: 80
-                    status: "on_track"
-                  - budget_id: "budget-uuid-2"
-                    category: "Shopping"
-                    limit: 10000.00
-                    spent: 11000.00
-                    remaining: -1000.00
-                    period: "monthly"
-                    alert_threshold: 80
-                    status: "exceeded"
-        '401':
-          description: Unauthorized
-
-    post:
-      summary: Create a new budget (FR-018)
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                category:
-                  type: string
-                  enum:
-                    - Bills & Utilities
-                    - P2P Transfers
-                    - Shopping
-                    - Mobile Recharge
-                    - Entertainment
-                    - Food & Dining
-                    - Other
-                limit:
-                  type: number
-                  format: double
-                  minimum: 1
-                period:
-                  type: string
-                  enum:
-                    - weekly
-                    - monthly
-                    - yearly
-                alert_threshold:
-                  type: integer
-                  description: Alert when spending reaches this % (e.g., 80 for 80%)
-                  minimum: 1
-                  maximum: 100
-                  default: 80
-              required:
-                - category
-                - limit
-                - period
-      responses:
-        '201':
-          description: Budget created
-          content:
-            application/json:
-              example:
-                budget_id: "budget-uuid"
-                category: "Bills & Utilities"
-                limit: 15000.00
-                period: "monthly"
-                alert_threshold: 80
-                message: "Budget created successfully."
-        '400':
-          description: Invalid parameters
-        '409':
-          description: Budget already exists for this category and period
-        '401':
-          description: Unauthorized
-
-  /budgets/{budget_id}:
-    put:
-      summary: Update budget (FR-018)
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: budget_id
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                limit:
-                  type: number
-                  format: double
-                alert_threshold:
-                  type: integer
-                  minimum: 1
-                  maximum: 100
-      responses:
-        '200':
-          description: Budget updated
-          content:
-            application/json:
-              example:
-                budget_id: "budget-uuid"
-                limit: 18000.00
-                alert_threshold: 85
-                message: "Budget updated successfully."
-        '404':
-          description: Budget not found
-        '401':
-          description: Unauthorized
-
-    delete:
-      summary: Delete budget (FR-018)
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: budget_id
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Budget deleted
-          content:
-            application/json:
-              example:
-                message: "Budget deleted successfully."
-        '404':
-          description: Budget not found
-        '401':
-          description: Unauthorized
-
-  /rewards:
-    get:
-      summary: Get user rewards and cashback (FR-019)
-      security:
-        - bearerAuth: []
-      description: Retrieve rewards, cashback, and loyalty points
-      responses:
-        '200':
-          description: Rewards summary
-          content:
-            application/json:
-              example:
-                total_points: 1250
-                points_value: 125.00
-                tier: "Silver"
-                next_tier: "Gold"
-                points_to_next_tier: 750
-                cashback_earned_this_month: 500.00
-                total_cashback_earned: 2500.00
-                active_offers:
-                  - offer_id: "offer-uuid-1"
-                    title: "5% Cashback on Bill Payments"
-                    description: "Get 5% cashback on all utility bill payments"
-                    cashback_rate: 5
-                    valid_until: "2025-10-31T23:59:59Z"
-                    category: "bills"
-                  - offer_id: "offer-uuid-2"
-                    title: "10 Points per Transaction"
-                    description: "Earn 10 loyalty points on every P2P transfer"
-                    points_per_transaction: 10
-                    valid_until: "2025-10-31T23:59:59Z"
-                    category: "p2p"
-        '401':
-          description: Unauthorized
-
-  /rewards/history:
-    get:
-      summary: Get rewards history (FR-019)
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: query
-          name: page
-          schema:
-            type: integer
-            default: 1
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            default: 20
-        - in: query
-          name: type
-          schema:
-            type: string
-            enum:
-              - cashback
-              - points
-              - all
-            default: all
-      responses:
-        '200':
-          description: Rewards history
-          content:
-            application/json:
-              example:
-                rewards:
-                  - reward_id: "reward-uuid-1"
-                    type: "cashback"
-                    amount: 50.00
-                    transaction_id: "txn-uuid"
-                    description: "5% cashback on K-Electric bill payment"
-                    earned_at: "2025-09-25T10:00:00Z"
-                    status: "credited"
-                  - reward_id: "reward-uuid-2"
-                    type: "points"
-                    points: 100
-                    transaction_id: "txn-uuid-2"
-                    description: "Loyalty points for P2P transfer"
-                    earned_at: "2025-09-24T14:30:00Z"
-                    status: "credited"
-                total: 35
-                page: 1
-        '401':
-          description: Unauthorized
-
-  /rewards/redeem:
-    post:
-      summary: Redeem reward points (FR-019)
-      security:
-        - bearerAuth: []
-      description: Convert loyalty points to wallet balance
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                points:
-                  type: integer
-                  minimum: 100
-                  description: Minimum 100 points required for redemption
-              required:
-                - points
-      responses:
-        '200':
-          description: Points redeemed successfully
-          content:
-            application/json:
-              example:
-                points_redeemed: 1000
-                amount_credited: 100.00
-                remaining_points: 250
-                transaction_id: "txn-uuid"
-                message: "PKR 100.00 credited to your wallet."
-        '400':
-          description: Insufficient points or invalid amount
-        '401':
-          description: Unauthorized
-
-  /referrals:
-    get:
-      summary: Get referral information (FR-019)
-      security:
-        - bearerAuth: []
-      description: Get user's referral code and referral statistics
-      responses:
-        '200':
-          description: Referral information
-          content:
-            application/json:
-              example:
-                referral_code: "AHMED2025"
-                referral_link: "https://geopay.app/ref/AHMED2025"
-                total_referrals: 8
-                active_referrals: 6
-                total_earned: 800.00
-                referral_bonus_per_user: 100.00
-                referrals:
-                  - referred_user: "Ali A."
-                    joined_at: "2025-09-20T10:00:00Z"
-                    status: "active"
-                    bonus_earned: 100.00
-                  - referred_user: "Sara K."
-                    joined_at: "2025-09-15T14:30:00Z"
-                    status: "active"
-                    bonus_earned: 100.00
-        '401':
-          description: Unauthorized
-
-  /referrals/apply:
-    post:
-      summary: Apply referral code during registration
-      security: []
-      description: Apply a referral code when a new user registers
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                user_id:
-                  type: string
-                  format: uuid
-                  description: New user's ID from registration
-                referral_code:
-                  type: string
-                  description: Referral code from existing user
-              required:
-                - user_id
-                - referral_code
-      responses:
-        '200':
-          description: Referral code applied
-          content:
-            application/json:
-              example:
-                message: "Referral code applied successfully."
-                bonus_pending: 100.00
-                bonus_conditions: "Complete your first transaction to receive PKR 100 bonus."
-        '400':
-          description: Invalid referral code
-        '404':
-          description: User not found
