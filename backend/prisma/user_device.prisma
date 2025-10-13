@@ -1,0 +1,16 @@
+model UserDevice {
+  user_device_id String   @id @default(dbgenerated("gen_random_uuid()")) // Changed for DB-side generation
+  user_id        String
+  device_id      String
+  is_active      Boolean  @default(true)
+  registered_at  DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) // Changed for DB-side generation
+  last_active_at DateTime?
+  trusted        Boolean  @default(false)
+
+  // Relations
+  user           User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  device         Device   @relation(fields: [device_id], references: [device_id], onDelete: Cascade)
+
+  @@unique([user_id, device_id])
+  @@map("user_device")
+}

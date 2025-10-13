@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@prisma/client": "^6.17.1",
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
@@ -10,6 +11,12 @@
   "scripts": {
     "migrate:up": "node-pg-migrate up -c ./migrations.config.js",
     "migrate:down": "node-pg-migrate down -c ./migrations.config.js",
-    "migrate:create": "node-pg-migrate create -c ./migrations.config.js"
+    "migrate:create": "node-pg-migrate create -c ./migrations.config.js",
+    "test": "jest --detectOpenHandles --runInBand"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "prisma": "^6.17.1",
+    "supertest": "^7.1.4"
   }
 }
