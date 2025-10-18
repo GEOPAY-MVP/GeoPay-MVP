@@ -22,6 +22,170 @@ enum UserStatus {
 }
 
 model User {
+  user_id           String       @id @default(uuid())
+  full_name         String?
+  email             String       @unique
+  phone_number      String       @unique
+  cnic              String       @unique
+  date_of_birth     DateTime?
+  address           String?
+  password_hash     String
+  pin               String
+  kyc_status        KYCStatus    @default(pending)
+  is_two_fa_enabled Boolean      @default(false)
+  two_fa_method     String?
+  status            UserStatus   @default(active)
+  registered_at     DateTime     @default(now())
+  last_login_at     DateTime?
+  userDevices       UserDevice[]
+
+  wallet Wallet? // This creates the other side of the relation
+
+  @@map("user")
+}
+
+enum DeviceStatus {
+  active
+  inactive
+  suspended
+  blocked
+}
+
+model Device {
+  device_id            String       @id @default(uuid())
+  os_type              String?
+  device_fingerprint   String       @unique
+  device_name          String?
+  status               DeviceStatus @default(active)
+  is_biometric_enabled Boolean      @default(false)
+  biometric_public_key String?
+  fcm_token            String?
+  userDevices          UserDevice[]
+
+  @@map("device")
+}
+
+model UserDevice {
+  user_device_id String    @id @default(dbgenerated("gen_random_uuid()")) // Changed for DB-side generation
+  user_id        String
+  device_id      String
+  is_active      Boolean   @default(true)
+  registered_at  DateTime  @default(dbgenerated("CURRENT_TIMESTAMP")) // Changed for DB-side generation
+  last_active_at DateTime?
+  trusted        Boolean   @default(false)
+
+  // Relations
+  user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  device Device @relation(fields: [device_id], references: [device_id], onDelete: Cascade)
+
+  @@unique([user_id, device_id])
+  @@map("user_device")
+}
+
+// --- ADD THIS TO THE BOTTOM OF YOUR schema.prisma FILE ---
+
+// Enums for status fields to ensure data consistency
+enum WalletStatus {
+  active
+  frozen
+  suspended
+  closed
+}
+
+enum TransactionType {
+  transfer
+  payment
+  topup
+  bill_payment
+  withdrawal
+  deposit
+  refund
+}
+
+enum TransactionStatus {
+  pending
+  processing
+  completed
+  failed
+  cancelled
+  reversed
+}
+
+model Wallet {
+  id               String       @id @default(uuid())
+  userId           String       @unique
+  currencyCode     String       @default("PKR") @db.VarChar(3)
+  availableBalance Decimal      @default(0.00) @db.Decimal(15, 2)
+  pendingBalance   Decimal      @default(0.00) @db.Decimal(15, 2)
+  status           WalletStatus @default(active)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  // This relation links to your existing User model.
+  user User @relation(fields: [userId], references: [user_id], onDelete: Cascade)
+
+  // Relations to Transaction model
+  sentTransactions     Transaction[] @relation("SentTransactions")
+  receivedTransactions Transaction[] @relation("ReceivedTransactions")
+
+  @@index([userId], name: "idx_wallet_user")
+  @@index([status], name: "idx_wallet_status")
+  @@map("wallet")
+}
+
+model Transaction {
+  id String @id @default(uuid())
+
+  // Sender information
+  senderWalletId String
+  senderWallet   Wallet @relation("SentTransactions", fields: [senderWalletId], references: [id], onDelete: Cascade)
+
+  // Receiver information (optional, for transfers)
+  receiverWalletId String?
+  receiverWallet   Wallet? @relation("ReceivedTransactions", fields: [receiverWalletId], references: [id])
+  receiverName     String? // For external transactions like bill payments
+
+  type         TransactionType
+  amount       Decimal           @db.Decimal(15, 2)
+  currencyCode String            @default("PKR") @db.VarChar(3)
+  status       TransactionStatus @default(pending)
+  description  String?
+  provider     String? // e.g., "Stripe", "Bank Alfalah"
+  metadata     Json? // For storing provider-specific data
+  createdAt    DateTime          @default(now())
+  completedAt  DateTime?
+
+  @@index([senderWalletId], name: "idx_transaction_sender_wallet")
+  @@index([receiverWalletId], name: "idx_transaction_receiver_wallet")
+  @@index([type], name: "idx_transaction_type")
+  @@index([status], name: "idx_transaction_status")
+  @@map("transaction")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum KYCStatus {
+  pending
+  verified
+  rejected
+  under_review
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+  blocked
+}
+
+model User {
   user_id           String     @id @default(uuid())
   full_name         String?
   email             String     @unique
