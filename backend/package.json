@@ -1,4 +1,11 @@
 {
+  "name": "backend",
+  "version": "1.0.0",
+  "type": "module", 
+  "main": "app.js",
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "dependencies": {
     "@prisma/client": "^6.17.1",
     "bcryptjs": "^3.0.2",
@@ -13,11 +20,17 @@
     "migrate:up": "node-pg-migrate up -c ./migrations.config.js",
     "migrate:down": "node-pg-migrate down -c ./migrations.config.js",
     "migrate:create": "node-pg-migrate create -c ./migrations.config.js",
-    "test": "jest --detectOpenHandles --runInBand"
+    "test": "jest --detectOpenHandles --runInBand",
+    "start": "node server.js",
+    "db:seed": "node prisma/seed.js" 
   },
   "devDependencies": {
     "jest": "^30.2.0",
     "prisma": "^6.17.1",
     "supertest": "^7.1.4"
-  }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
 }
