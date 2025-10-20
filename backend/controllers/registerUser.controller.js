@@ -1,4 +1,6 @@
 import { registerPhoneService } from "../services/registerUser.service.js";
+import { registerEmailService } from "../services/registerUser.service.js";
+
 
 export const registerPhone = async (req, res) => {
   try {
@@ -10,5 +12,20 @@ export const registerPhone = async (req, res) => {
   } catch (error) {
     console.error(" Error in registerPhone controller:", error.message);
     res.status(500).json({ message: error.message || "Internal server error" });
+  }
+};
+
+// New controller for registering email and name
+
+export const registerEmail = async (req, res) => {
+  try {
+    const { email, name, session_token } = req.body;
+    const result = await registerEmailService(email, name, session_token);
+    res.status(result.status || 200).json({
+      message: result.message,
+      session_token: result.session_token,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
