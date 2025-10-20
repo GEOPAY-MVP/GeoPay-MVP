@@ -5,7 +5,6 @@ info:
   version: 2.0.0
   contact:
     name: GeoPay
-
 servers:
   - url: /api/v1
 tags:
@@ -23,18 +22,47 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-
 security:
   - bearerAuth: []
-
 paths:
   # ==========================================
   # USER AUTHENTICATION & ONBOARDING
   # ==========================================
-  
-  /users/register:
+  /users/register-phone:
     post:
-      summary: Register user (Step 1 - email + password only)
+      summary: Register user (Step 1 - phone number only)
+      tags:
+        - User Authentication & Onboarding
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                  pattern: '^[0-9]{10,15}$'
+                  description: User's phone number in international format (e.g., 923001234567)
+              required:
+                - phone
+      responses:
+        '201':
+          description: Registration started
+          content:
+            application/json:
+              example:
+                message: "Registration started. Please provide email and name."
+                session_token: "temp_session_token_for_step_2"
+        '400':
+          description: Invalid phone number format
+        '409':
+          description: Phone number already registered
+
+  /users/register-email:
+    post:
+      summary: Register user (Step 2 - email + name)
       tags:
         - User Authentication & Onboarding
       security: []
@@ -48,28 +76,70 @@ paths:
                 email:
                   type: string
                   format: email
-                password:
+                name:
                   type: string
-                  minLength: 8
+                  minLength: 2
+                session_token:
+                  type: string
+                  description: Temporary session token from Step 1
               required:
                 - email
-                - password
+                - name
+                - session_token
       responses:
         '201':
-          description: Registration started
+          description: Email and name registered
           content:
             application/json:
               example:
-                message: "Registration started. Please upload CNIC."
-                session_token: "temp_session_token_for_step_2"
+                message: "Email and name registered. Please set transaction PIN."
+                session_token: "temp_session_token_for_step_3"
         '400':
-          description: Invalid email/password format
+          description: Invalid email, name, or session token
+        '401':
+          description: Invalid session token
         '409':
           description: Email already registered
 
+  /users/register-pin:
+    post:
+      summary: Register user (Step 3 - set transaction PIN)
+      tags:
+        - User Authentication & Onboarding
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pin:
+                  type: string
+                  pattern: '^[0-9]{4,6}$'
+                  description: 4–6 digit numeric PIN for secure transactions
+                session_token:
+                  type: string
+                  description: Temporary session token from Step 2
+              required:
+                - pin
+                - session_token
+      responses:
+        '201':
+          description: PIN created successfully
+          content:
+            application/json:
+              example:
+                message: "PIN created successfully. Please upload CNIC."
+                session_token: "temp_session_token_for_step_4"
+        '400':
+          description: Invalid PIN or session token
+        '401':
+          description: Session token expired or invalid
+
   /users/register-cnic:
     post:
-      summary: Upload CNIC (Step 2 - OCR extraction)
+      summary: Upload CNIC (Step 4 - OCR extraction)
       tags:
         - User Authentication & Onboarding
       security: []
@@ -82,7 +152,7 @@ paths:
               properties:
                 session_token:
                   type: string
-                  description: Temporary token from Step 1
+                  description: Temporary token from Step 3
                 cnic_image:
                   type: string
                   format: binary
@@ -132,7 +202,7 @@ paths:
 
   /users/verify-biometric:
     post:
-      summary: Complete biometric verification (Step 3)
+      summary: Complete biometric verification (Step 5)
       tags:
         - User Authentication & Onboarding
       security: []
@@ -403,7 +473,7 @@ paths:
             application/json:
               example:
                 message: "2FA enabled successfully."
-                qr_code: "data:image/png;base64,..." 
+                qr_code: "data:image/png;base64,..."
         '400':
           description: Invalid request
 
