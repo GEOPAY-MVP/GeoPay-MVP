@@ -80,3 +80,37 @@ export const registerEmailService = async (email, name, sessionToken) => {
     session_token: nextSessionToken,
   };
 };
+
+
+/**
+ * Step 3: Register transaction PIN
+ * (Stores hashed PIN temporarily — user not created yet)
+ */
+export const registerPinService = async (pin, sessionToken) => {
+  if (!pin || !sessionToken) {
+    return { status: 400, message: "Invalid PIN or session token" };
+  }
+
+  const sessionData = registrationSessions.get(sessionToken);
+  if (!sessionData) {
+    return { status: 401, message: "Invalid session token" };
+  }
+
+  // Hash the PIN before 
+
+  const nextSessionToken = crypto.randomBytes(16).toString("hex");
+
+  registrationSessions.set(nextSessionToken, {
+    ...sessionData,
+    pin: pin,
+  });
+
+  // Remove old token
+  registrationSessions.delete(sessionToken);
+
+  return {
+   
+    message: "PIN created successfully. Please upload CNIC.",
+    session_token: nextSessionToken,
+  };
+};

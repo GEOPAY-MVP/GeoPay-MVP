@@ -1,5 +1,4 @@
-import { registerPhoneService } from "../services/registerUser.service.js";
-import { registerEmailService } from "../services/registerUser.service.js";
+import { registerPhoneService,registerEmailService,registerPinService } from "../services/registerUser.service.js";
 
 
 export const registerPhone = async (req, res) => {
@@ -25,6 +24,16 @@ export const registerEmail = async (req, res) => {
       message: result.message,
       session_token: result.session_token,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const registerPin = async (req, res) => {
+  try {
+    const { pin, session_token } = req.body;
+    const result = await registerPinService(pin, session_token);
+    res.status(result.status || 200).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
