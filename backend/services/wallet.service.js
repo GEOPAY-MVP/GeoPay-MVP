@@ -6,10 +6,22 @@ const prisma = new PrismaClient();
  * @param {string} userId - The ID of the user.
  * @returns {Promise<import('@prisma/client').Wallet | null>} The wallet object or null if not found.
  */
-export const findWalletByUserId = async (userId) => {
-  return prisma.wallet.findUnique({
-    where: { userId },
-  });
+export const getWalletByUserId = async (userId) => {
+  if (!userId) {
+    throw new Error('User ID is required.');
+  }
+  try {
+    const wallet = await prisma.wallet.findUnique({
+      where: {
+        userId: userId,
+      },
+      // We can select which fields to return, but let's return all for now
+    });
+    return wallet;
+  } catch (error) {
+    console.error('Error fetching wallet:', error);
+    throw new Error('Database error while fetching wallet.');
+  }
 };
 
 /**
