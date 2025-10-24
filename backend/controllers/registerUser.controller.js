@@ -1,4 +1,4 @@
-import { registerPhoneService,registerEmailService,registerPinService } from "../services/registerUser.service.js";
+import { registerPhoneService,registerEmailService,registerPinService,registerCnicService } from "../services/registerUser.service.js";
 
 
 export const registerPhone = async (req, res) => {
@@ -36,5 +36,22 @@ export const registerPin = async (req, res) => {
     res.status(result.status || 200).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+export const registerCnic = async (req, res) => {
+  try {
+    const { session_token } = req.body;
+    const cnicImage = req.file;
+
+    if (!cnicImage) {
+      return res.status(400).json({ message: "CNIC image is required" });
+    }
+
+    const result = await registerCnicService(session_token, cnicImage.path);
+    return res.status(result.status || 200).json(result);
+  } catch (error) {
+    console.error("Controller Error:", error.message);
+    res.status(500).json({ status: 500, message: "Server error", error: error.message });
   }
 };
